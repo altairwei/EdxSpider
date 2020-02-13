@@ -3,8 +3,11 @@ import requests
 
 
 def fetch_page(url, output = None, cookie_file = None):
-    cookies = http.cookiejar.MozillaCookieJar(cookie_file)
-    cookies.load()
+    if cookie_file:
+        cookies = http.cookiejar.MozillaCookieJar(cookie_file)
+        cookies.load()
+    else:
+        cookies = None
     resp = requests.get(url, cookies=cookies)
     resp.raise_for_status()
     if output:

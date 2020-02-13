@@ -23,11 +23,27 @@ def parse(index_file, item_list_file):
     parse_page(index_file, item_list_file)
 
 
+def parse_selections(selection):
+    parts = list(map(lambda r: r.split(":"), selection.split(",")))
+    twos = [list(range(int(part[0]), int(part[1]))) 
+        for part in filter(lambda p: len(p) == 2, parts)]
+    ones = [[int(part[0])]
+        for part in filter(lambda p: len(p) == 1, parts)]
+    return list(set([parts for parts in ones + twos for parts in parts]))
+
+
 @click.command()
+@click.option('--includes',
+    help="String like '2:3,5:8,10:12' , intervals will be parsed by `range()`.")
+@click.option('--excludes', help="Same as '--include' option.")
 @click.argument('item_list')
 @click.argument('output_folder')
-def download(item_list, output_folder):
-    download_items(item_list, output_folder)
+def download(item_list, output_folder, includes, excludes):
+    if includes:
+        includes = parse_selections(includes)
+    if excludes:
+        excludes = parse_selections(excludes)
+    download_items(item_list, output_folder, includes, excludes)
 
 
 edxcli.add_command(fetch)
