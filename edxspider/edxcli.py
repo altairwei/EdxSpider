@@ -1,5 +1,9 @@
 import click
-from edxspider.page_fetcher import fetch_page
+import json
+import http.cookiejar
+import requests
+import sys
+import os
 from edxspider.page_parser import parse_page
 from edxspider.item_downloader import download_items
 
@@ -9,18 +13,31 @@ def edxcli():
 
 
 @click.command()
-@click.option('-c', '--cookie-file', help="A filename that stores cookies.")
+@click.option('-c', '--cookie-file', type=click.Path(exists=True),
+    help="A filename that stores cookies.")
+@click.option('--html-file', type=click.File("w", encoding="utf-8"))
 @click.argument('url')
-@click.argument('output')
-def fetch(url, output, cookie_file):
-    fetch_page(url, output, cookie_file)
+def fetch(url, html_file, cookie_file):
+    if cookie_file:
+        cookies = http.cookiejar.MozillaCookieJar(cookie_file)
+        cookies.load()
+    else:
+        cookies = None
+    resp = requests.get(url, cookies=cookies)
+    resp.raise_for_status()
+    if html_file:
+        html_file.write(resp.text)
+    else:
+        os.write(1, resp.content)
 
 
 @click.command()
-@click.argument('index_file')
-@click.argument('item_list_file')
-def parse(index_file, item_list_file):
-    parse_page(index_file, item_list_file)
+@click.option('-t', '--tasks-file', type=click.File("w", encoding="utf-8"))
+@click.argument('html_file', type=click.File("r", encoding="utf-8"))
+def parse(html_file, tasks_file):
+    if not tasks_file:
+        tasks_file = sys.stdout
+    parse_page(html_file, tasks_file)
 
 
 def parse_selections(selection):
@@ -36,14 +53,14 @@ def parse_selections(selection):
 @click.option('--includes',
     help="String like '2:3,5:8,10:12' , intervals will be parsed by `range()`.")
 @click.option('--excludes', help="Same as '--include' option.")
-@click.argument('item_list')
-@click.argument('output_folder')
-def download(item_list, output_folder, includes, excludes):
+@click.option('-C', '--output_folder', type=click.Path(exists=True))
+@click.argument('item_list_file', type=click.File("r"))
+def download(item_list_file, output_folder, includes, excludes):
     if includes:
         includes = parse_selections(includes)
     if excludes:
         excludes = parse_selections(excludes)
-    download_items(item_list, output_folder, includes, excludes)
+    download_items(json.load(item_list_file), output_folder, includes, excludes)
 
 
 edxcli.add_command(fetch)

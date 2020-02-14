@@ -6,18 +6,11 @@ from pathvalidate import sanitize_filename
 from urllib.parse import urlparse
 
 def download_items(item_list, output_folder, includes = None, excludes = None):
-    items = []
-    if type(item_list) is str:
-        with open(item_list, "r", encoding="utf-8") as fh:
-            items = json.load(fh)
-    elif type(item_list) is list:
-        items = item_list
-
+    items = item_list
     if includes:
         items = filter(lambda item: int(item["index"]) in includes, items)
     if excludes:
         items = filter(lambda item: int(item["index"]) not in excludes, items)
-
     for item in items:
         dest_folder_parts = list(
             map(lambda folder: sanitize_filename(folder.strip()), item["title"].split(">")))
@@ -47,6 +40,7 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 def download_file(url, filename):
+    #TODO: raise error when lost connection
     click.echo("From %s" % url)
     with requests.get(url, allow_redirects=True, stream=True) as resp:
         resp.raise_for_status()

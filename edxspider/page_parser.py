@@ -5,7 +5,7 @@ from urllib.parse import urlparse, urlunparse
 
 def parse_page(index_file, item_list_file = None):
     all_content = []
-    document = BeautifulSoup(open(index_file, encoding="utf-8"), 'lxml')
+    document = BeautifulSoup(index_file, 'lxml')
     seq_list_ol = document.find(id = "sequence-list")
     all_seq_content_li = seq_list_ol.find_all("li")
     for seq_content_li in all_seq_content_li:
@@ -37,7 +37,7 @@ def parse_page(index_file, item_list_file = None):
         all_content.append(content)
     # Write item list
     if item_list_file:
-        json.dump(all_content, open(item_list_file, "w"))
+        json.dump(all_content, item_list_file)
     else:
         return all_content
 
