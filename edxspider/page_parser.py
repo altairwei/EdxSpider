@@ -1,11 +1,12 @@
 import html
 import json
+import typing
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse
 
-def parse_page(index_file, item_list_file = None):
+def parse_page(index_doc: str, item_list_file: typing.TextIO = None) -> list:
     all_content = []
-    document = BeautifulSoup(index_file, 'lxml')
+    document = BeautifulSoup(index_doc, 'lxml')
     seq_list_ol = document.find(id = "sequence-list")
     all_seq_content_li = seq_list_ol.find_all("li")
     for seq_content_li in all_seq_content_li:
@@ -38,7 +39,7 @@ def parse_page(index_file, item_list_file = None):
     # Write item list
     if item_list_file:
         json.dump(all_content, item_list_file)
-    else:
-        return all_content
+
+    return all_content
 
     

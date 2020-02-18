@@ -2,34 +2,52 @@ import requests
 import json
 import os
 import click
+from collections import deque
 from pathvalidate import sanitize_filename
 from urllib.parse import urlparse
+from requests.exceptions import Timeout, ConnectionError
 
-def download_items(item_list, output_folder, includes = None, excludes = None):
-    items = item_list
+def download_items(item_list: list, output_folder: str = None, includes: str = None, excludes: str = None):
+    items = deque(item_list)
+
+    # Filter tasks
     if includes:
-        items = filter(lambda item: int(item["index"]) in includes, items)
+        includes = parse_selections(includes)
+        items = deque(filter(lambda item: int(item["index"]) in includes, items))
     if excludes:
-        items = filter(lambda item: int(item["index"]) not in excludes, items)
-    for item in items:
+        excludes = parse_selections(excludes)
+        items = deque(filter(lambda item: int(item["index"]) not in excludes, items))
+
+    # Download items of task
+    while items:
+        item = items.popleft()
         dest_folder_parts = list(
             map(lambda folder: sanitize_filename(folder.strip()), item["title"].split(">")))
+        if not output_folder:
+            output_folder = os.getcwd()
         dest_folder = os.path.join(output_folder, *dest_folder_parts)
         os.makedirs(dest_folder, exist_ok=True)
-        if item.get("video_link", None):
-            v_url = item["video_link"]
-            v_filename = os.path.basename(urlparse(v_url).path)
-            download_file(v_url, os.path.join(dest_folder, v_filename))
-        if item.get("video_link", None) and item.get("transcript_link", None):
-            s_url = item["transcript_link"]
-            s_filename = "%s.srt" % os.path.splitext(
-                os.path.basename(item["video_link"]))[0]
-            download_file(s_url, os.path.join(dest_folder, s_filename))
-        if item.get("html_text", None):
-            # Download exercises
-            file_name = os.path.join(dest_folder, "index.html")
-            with open(file_name, "w", encoding="utf-8") as fh:
-                fh.write(item["html_text"])
+        try:
+            if item.get("video_link", None):
+                v_url = item["video_link"]
+                v_filename = os.path.basename(urlparse(v_url).path)
+                download_file(v_url, os.path.join(dest_folder, v_filename))
+            if item.get("video_link", None) and item.get("transcript_link", None):
+                s_url = item["transcript_link"]
+                s_filename = "%s.srt" % os.path.splitext(
+                    os.path.basename(item["video_link"]))[0]
+                download_file(s_url, os.path.join(dest_folder, s_filename))
+            if item.get("html_text", None):
+                # Download exercises
+                file_name = os.path.join(dest_folder, "index.html")
+                with open(file_name, "w", encoding="utf-8") as fh:
+                    fh.write(item["html_text"])
+            click.echo(click.style(
+                "Download item[%s] successfully" % item["index"], fg="green"))
+        except (Timeout, ConnectionError, FileIncomplete):
+            click.echo(click.style(
+                "Failed to download item[%s]" % item["index"], fg="red"))
+            items.append(item)
 
 def sizeof_fmt(num, suffix='B'):
     '''by Fred Cirera'''
@@ -40,12 +58,14 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 def download_file(url, filename):
-    #TODO: raise error when lost connection
+    #TODO: 仍然没有解决下载视频可能不完整的BUG
     click.echo("From %s" % url)
-    with requests.get(url, allow_redirects=True, stream=True) as resp:
+    with requests.get(
+        url, allow_redirects=True, stream=True, timeout=10
+    ) as resp:
         resp.raise_for_status()
+        total_length = int(resp.headers.get('content-length'))
         with open(filename, 'wb') as fh:
-            total_length = int(resp.headers.get('content-length'))
             with click.progressbar(
                 length=total_length,
                 label="Downloading %s (%s):" % (
@@ -55,5 +75,19 @@ def download_file(url, filename):
                     if data:
                         fh.write(data)
                         bar.update(len(data))
+        #TODO: check size of downloaded items
+        if os.path.getsize(filename) != total_length:
+            raise FileIncomplete
 
 
+def parse_selections(selection):
+    parts = list(map(lambda r: r.split(":"), selection.split(",")))
+    twos = [list(range(int(part[0]), int(part[1]))) 
+        for part in filter(lambda p: len(p) == 2, parts)]
+    ones = [[int(part[0])]
+        for part in filter(lambda p: len(p) == 1, parts)]
+    return list(set([parts for parts in ones + twos for parts in parts]))
+
+
+class FileIncomplete(Exception):
+    pass
