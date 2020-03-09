@@ -27,7 +27,10 @@ def parse_page(index_doc: str, item_list_file: typing.TextIO = None) -> list:
         if content["transcript_link"]:
             u = urlparse(content["transcript_link"])
             if not u.scheme:
-                content["transcript_link"] = urlunparse(u._replace(scheme='https'))
+                u = u._replace(scheme='https')
+            if not u.netloc:
+                u = u._replace(netloc='courses.edx.org')
+            content["transcript_link"] = urlunparse(u)
         # Extract exercise content
         if not video_link_el:
             inner_html_esc = html.unescape(inner_html)
