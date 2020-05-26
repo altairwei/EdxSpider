@@ -22,15 +22,18 @@ def parse_page(index_doc: str, item_list_file: typing.TextIO = None) -> list:
         inner_document = BeautifulSoup(inner_html, 'html.parser')
         video_link_el = inner_document.find(class_ = "btn-link video-sources video-download-button")
         content["video_link"] = video_link_el["href"] if video_link_el else None
-        transcript_link_el = inner_document.find(class_ = "btn-link external-track")
-        content["transcript_link"] = transcript_link_el["href"] if transcript_link_el else None
-        if content["transcript_link"]:
-            u = urlparse(content["transcript_link"])
+        transcript_link_el = inner_document.select(".wrapper-download-transcripts a")
+        content["transcript_link"] = set()
+        for srt_link in transcript_link_el:
+            srt_url = srt_link["href"]
+            u = urlparse(srt_url)
             if not u.scheme:
                 u = u._replace(scheme='https')
             if not u.netloc:
                 u = u._replace(netloc='courses.edx.org')
-            content["transcript_link"] = urlunparse(u)
+            srt_url = urlunparse(u)
+            content["transcript_link"].add(srt_url)
+        content["transcript_link"] = list(content["transcript_link"])
         # Extract exercise content
         if not video_link_el:
             inner_html_esc = html.unescape(inner_html)

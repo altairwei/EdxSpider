@@ -1,6 +1,8 @@
 import requests
 import json
 import os
+import re
+
 import click
 from collections import deque
 from pathvalidate import sanitize_filename
@@ -33,10 +35,16 @@ def download_items(item_list: list, output_folder: str = None, includes: str = N
                 v_filename = os.path.basename(urlparse(v_url).path)
                 download_file(v_url, os.path.join(dest_folder, v_filename))
             if item.get("video_link", None) and item.get("transcript_link", None):
-                s_url = item["transcript_link"]
-                s_filename = "%s.srt" % os.path.splitext(
-                    os.path.basename(item["video_link"]))[0]
-                download_file(s_url, os.path.join(dest_folder, s_filename))
+                for s_url in item["transcript_link"]:
+                    # Get filename from server
+                    remote_filename = get_uri_filename(s_url)
+                    s_ext = os.path.splitext(remote_filename)[1]
+                    s_name = os.path.splitext(os.path.basename(item["video_link"]))[0]
+                    s_filename = "{name}{ext}".format(
+                        name = s_name,
+                        ext = s_ext if s_ext else ".srt"
+                    )
+                    download_file(s_url, os.path.join(dest_folder, s_filename))
             if item.get("html_text", None):
                 # Download exercises
                 file_name = os.path.join(dest_folder, "index.html")
@@ -44,7 +52,8 @@ def download_items(item_list: list, output_folder: str = None, includes: str = N
                     fh.write(item["html_text"])
             click.echo(click.style(
                 "Download item[%s] successfully" % item["index"], fg="green"))
-        except (Timeout, ConnectionError, FileIncomplete):
+        except (Timeout, ConnectionError, FileIncomplete) as e:
+            print(e)
             click.echo(click.style(
                 "Failed to download item[%s]" % item["index"], fg="red"))
             items.append(item)
@@ -88,6 +97,12 @@ def parse_selections(selection):
         for part in filter(lambda p: len(p) == 1, parts)]
     return list(set([parts for parts in ones + twos for parts in parts]))
 
+
+def get_uri_filename(url):
+    with requests.get(url, allow_redirects=True, stream=True) as resp:
+        cd_val = resp.headers.get('Content-Disposition', '')
+        if cd_val:
+            return re.findall("filename=\"(.+)\"", cd_val)[0]
 
 class FileIncomplete(Exception):
     pass
