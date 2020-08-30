@@ -1,27 +1,23 @@
-import click
 import json
-import http.cookiejar
-import requests
 import sys
 import os
+import http
+
+import click
+import requests
+from requests import Response
+
 from edxspider.page_parser import parse_page
 from edxspider.item_downloader import download_items
-from requests import Response
+from edxspider.course_fetcher import (
+    fetch_course, fetch_course_blocks,
+    fetch_html, fetch_course_sequences,
+    parse_url, handle_html_task)
+
 
 @click.group()
 def edxcli():
     pass
-
-
-def fetch_html(url: str, cookie_file: str = None) -> Response:
-    if cookie_file:
-        cookies = http.cookiejar.MozillaCookieJar(cookie_file)
-        cookies.load()
-    else:
-        cookies = None
-    resp = requests.get(url, cookies=cookies)
-    resp.raise_for_status()
-    return resp
 
 
 @click.command()
@@ -39,18 +35,61 @@ def save(url, output_folder, cookie_file, tasks_file, includes, excludes):
     tasks = parse_page(resp.text, tasks_file)
     download_items(tasks, output_folder, includes, excludes)
 
-@click.command()
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def fetch(ctx):
+    pass
+
+
+@fetch.command()
 @click.option('-c', '--cookie-file', type=click.Path(exists=True),
     help="A filename that stores cookies.")
-@click.option('--html-file', type=click.File("w", encoding="utf-8"))
-@click.argument('url')
-def fetch(url, html_file, cookie_file):
-    resp = fetch_html(url, cookie_file)
-    if html_file:
-        html_file.write(resp.text)
+@click.option('-ci', '--course-id', help="Course id.")
+@click.option('-ei', '--element-id', help="Lecture id.")
+@click.option('-u', '--url', help="Url of lecture page.")
+def task(course_id, element_id, url, cookie_file):
+    if course_id and element_id:
+        pass
+    elif url:
+        course_id, element_id = parse_url(url)
     else:
-        # Write byte to stdout instead of string
-        os.write(1, resp.content)
+        raise Exception("Unknown course_id and element_id.")
+    resp = fetch_course_sequences(course_id, element_id, cookie_file)
+    resp_json = resp.json()
+    tasks = resp_json["items"]
+    proc_tasks = list(map(
+        lambda task: handle_html_task(task, cookie_file), tasks))
+    os.write(1, json.dumps(proc_tasks, indent=2).encode("UTF-8"))
+
+
+@fetch.command()
+@click.option('-c', '--cookie-file', type=click.Path(exists=True),
+    help="A filename that stores cookies.")
+@click.argument('course_id')
+def info(course_id, cookie_file):
+    resp = fetch_course(course_id, cookie_file)
+    os.write(1, resp.content)
+
+
+@fetch.command()
+@click.option('-c', '--cookie-file', type=click.Path(exists=True),
+    help="A filename that stores cookies.")
+@click.argument('course_id')
+@click.argument('username')
+def blocks(course_id, username, cookie_file):
+    resp = fetch_course_blocks(course_id, username, cookie_file)
+    os.write(1, resp.content)
+
+
+@fetch.command()
+@click.option('-c', '--cookie-file', type=click.Path(exists=True),
+    help="A filename that stores cookies.")
+@click.argument('course_id')
+@click.argument('element_id')
+def seqs(course_id, element_id, cookie_file):
+    resp = fetch_course_sequences(course_id, element_id, cookie_file)
+    os.write(1, resp.content)
 
 
 @click.command()
