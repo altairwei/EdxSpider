@@ -1,5 +1,6 @@
 import html
 import json
+import sys
 from copy import deepcopy
 from typing import TextIO, List, Dict
 from bs4 import BeautifulSoup, PageElement
@@ -37,19 +38,23 @@ def extract_inner_documents(index_html: str) -> List[Dict]:
 def grab_video_subtitle(task: Dict) -> Dict:
     # document.querySelectorAll(".xmodule_VideoBlock") 代表着一个模块。
     new_task = deepcopy(task)
-    inner_html = new_task["inner_html"]
-    inner_document = BeautifulSoup(inner_html, 'html.parser')
+    print("Parsing %s" % task["id"], file=sys.stderr)
+    html_text = new_task["html"]
+    html_document = BeautifulSoup(html_text, 'html.parser')
     # Extract videos
-    video_blocks = inner_document.find_all(class_ = ".xmodule_VideoBlock")
+    video_blocks = html_document.find_all(class_ = "xmodule_VideoBlock")
     if video_blocks:
         new_task["videos"] = list(map(parse_video_block, video_blocks))
     # Extract exercise content
+    # Use pywebcopy to save whole html page
+    '''
     if not video_blocks:
-        inner_html_esc = html.unescape(inner_html)
-        inner_document = BeautifulSoup(inner_html_esc, 'html.parser')
-        problem_el = inner_document.find(class_ = "problem")
+        inner_html_esc = html.unescape(html_text)
+        html_document = BeautifulSoup(inner_html_esc, 'html.parser')
+        problem_el = html_document.find(class_ = "problem")
         if problem_el:
             new_task["html_text"] = str(problem_el.div)
+    '''
     return new_task
 
 def parse_video_block(video_block: PageElement) -> Dict:

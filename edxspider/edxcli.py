@@ -7,7 +7,7 @@ import click
 import requests
 from requests import Response
 
-from edxspider.page_parser import parse_page
+from edxspider.page_parser import (parse_page, grab_video_subtitle)
 from edxspider.item_downloader import download_items
 from edxspider.course_fetcher import (
     fetch_course, fetch_course_blocks,
@@ -30,9 +30,9 @@ def edxcli():
 @click.option('--excludes', help="Same as '--include' option.")
 @click.argument('url')
 def save(url, output_folder, cookie_file, tasks_file, includes, excludes):
-    resp = fetch_html(url, cookie_file)
+    html_text = fetch_html(url, cookie_file)
     #TODO: Lec_6 和 Lec_7 导出的 JSON 文件不完整
-    tasks = parse_page(resp.text, tasks_file)
+    tasks = parse_page(html_text, tasks_file)
     download_items(tasks, output_folder, includes, excludes)
 
 
@@ -92,13 +92,21 @@ def seqs(course_id, element_id, cookie_file):
     os.write(1, resp.content)
 
 
-@click.command()
-@click.option('-t', '--tasks-file', type=click.File("w", encoding="utf-8"))
-@click.argument('html_file', type=click.File("r", encoding="utf-8"))
-def parse(html_file, tasks_file):
-    if not tasks_file:
-        tasks_file = sys.stdout
-    parse_page(html_file.read(), tasks_file)
+@click.group()
+def parse():
+    pass
+
+
+@parse.command("task")
+@click.option("--html/--no-html", default=True)
+@click.argument('tasks_file', type=click.File("rb"))
+def parse_task(tasks_file, html):
+    tasks = json.load(tasks_file)
+    proc_tasks = list(map(grab_video_subtitle, tasks))
+    if not html:
+        for task in proc_tasks:
+            del task['html']
+    os.write(1, json.dumps(proc_tasks, indent=2).encode("UTF-8"))
 
 
 @click.command()

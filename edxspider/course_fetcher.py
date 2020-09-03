@@ -55,13 +55,7 @@ def parse_url(url):
     return (course_id, element_id)
 
 
-def fetch_html(page_id: str, cookie_file: str = None) -> str:
-    url = "https://courses.edx.org/xblock/%s?" % page_id
-    params = {
-        "show_title": 0,
-        "show_bookmark_button": 0
-    }
-    url += urlencode(params)
+def fetch_html(url: str, cookie_file: str = None) -> str:
     resp = get_request(url, cookie_file)
     return resp.text
 
@@ -69,5 +63,12 @@ def fetch_html(page_id: str, cookie_file: str = None) -> str:
 def handle_html_task(task: Dict, cookie_file: str = None) -> Dict:
     print("Fetching %s" % task["id"], file=sys.stderr)
     new_task = deepcopy(task)
-    new_task["html"] = fetch_html(new_task["id"], cookie_file)
+    url = "https://courses.edx.org/xblock/%s?" % new_task["id"]
+    params = {
+        "show_title": 0,
+        "show_bookmark_button": 0
+    }
+    url += urlencode(params)
+    new_task["url"] = url
+    new_task["html"] = fetch_html(url, cookie_file)
     return new_task
