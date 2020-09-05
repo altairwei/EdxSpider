@@ -3,6 +3,7 @@ import json
 import os
 import re
 import http
+from typing import List
 
 import click
 import pywebcopy
@@ -36,6 +37,7 @@ def download_course(task_list: list, output_folder: str = None,
     # Download items of task
     while task_deque:
         task = task_deque.popleft()
+        click.echo(click.style("Start to download page: %s" % task["page_title"], fg="yellow"))
         # Create forlder to place videos
         dest_folder_parts = list(
             map(lambda folder: sanitize_filename(folder.strip()), task["path"].split(">")))
@@ -46,35 +48,16 @@ def download_course(task_list: list, output_folder: str = None,
 
         try:
             # Download videos and transcripts.
-            for video_obj in task.get("videos", []):
-                video_folder = os.path.join(dest_folder,
-                    sanitize_filename(video_obj.get("video_title", "")))
-                if video_obj.get("video_link", None):
-                    v_url = video_obj["video_link"]
-                    v_filename = os.path.basename(urlparse(v_url).path)
-                    download_file(v_url, os.path.join(video_folder, v_filename))
-                if video_obj.get("video_link", None) and task.get("transcript_link", None):
-                    for s_url in video_obj["transcript_link"]:
-                        # Get filename from server
-                        remote_filename = get_uri_filename(s_url)
-                        s_ext = os.path.splitext(remote_filename)[1]
-                        s_name = os.path.splitext(os.path.basename(video_obj["video_link"]))[0]
-                        s_filename = "{name}{ext}".format(
-                            name = s_name,
-                            ext = s_ext if s_ext else ".srt"
-                        )
-                        download_file(s_url, os.path.join(video_folder, s_filename))
+            wait_for_download_videos(task.get("videos", []), dest_folder)
             # Save whole pages
+            '''
             if task.get("url", None):
-                if cookies:
-                    pywebcopy.SESSION.cookies = cookies
-                args = {
-                    'url': task["url"],
-                    'project_folder': dest_folder
-                    #'project_name': task["page_title"]
-                }
-                #pywebcopy.config.setup_config()
-                pywebcopy.save_webpage(**args)
+                download_webpage_from_url(task["url"], dest_folder, cookies)
+            '''
+            if task.get("html", None):
+                index_file_name = os.path.join(dest_folder, "index.html")
+                with open(index_file_name, "w", encoding="UTF-8") as f:
+                    f.write(task["html"])
 
             click.echo(click.style(
                 "Download %s successfully" % task["page_title"], fg="green"))
@@ -83,6 +66,48 @@ def download_course(task_list: list, output_folder: str = None,
             click.echo(click.style(
                 "Failed to download %s" % task["page_title"], fg="red"))
             task_deque.append(task)
+
+
+def wait_for_download_videos(videos: List, dest_folder: str):
+    video_deque = deque(videos)
+    while video_deque:
+        try:
+            video_obj = video_deque.popleft()
+            video_folder = os.path.join(dest_folder,
+                sanitize_filename(video_obj.get("video_title", "")))
+            os.makedirs(video_folder, exist_ok=True)
+            if video_obj.get("video_link", None):
+                v_url = video_obj["video_link"]
+                v_filename = os.path.basename(urlparse(v_url).path)
+                download_file(v_url, os.path.join(video_folder, v_filename))
+            if video_obj.get("video_link", None) and video_obj.get("transcript_link", None):
+                for s_url in video_obj["transcript_link"]:
+                    # Get filename from server
+                    remote_filename = get_uri_filename(s_url)
+                    s_ext = os.path.splitext(remote_filename)[1]
+                    s_name = os.path.splitext(os.path.basename(video_obj["video_link"]))[0]
+                    s_filename = "{name}{ext}".format(
+                        name = s_name,
+                        ext = s_ext if s_ext else ".srt"
+                    )
+                    download_file(s_url, os.path.join(video_folder, s_filename))
+        except (Timeout, ConnectionError, FileIncomplete) as e:
+            print(e)
+            click.echo(click.style(
+                "Failed to download video: %s" % video_obj["video_title"], fg="red"))
+            video_deque.append(video_obj)        
+
+
+def download_webpage_from_url(url, dest_folder, cookies):
+    if cookies:
+        pywebcopy.SESSION.cookies = cookies
+    args = {
+        'url': url,
+        'project_folder': dest_folder
+    }
+    pywebcopy.config["LOAD_JAVASCRIPT"] = False
+    pywebcopy.save_webpage(**args)
+
 
 def sizeof_fmt(num, suffix='B'):
     '''by Fred Cirera'''

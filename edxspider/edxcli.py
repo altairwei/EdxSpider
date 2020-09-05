@@ -8,7 +8,7 @@ import requests
 from requests import Response
 
 from edxspider.page_parser import (parse_page, grab_video_subtitle)
-from edxspider.item_downloader import download_course
+from edxspider.item_downloader import (download_course, download_webpage_from_url)
 from edxspider.course_fetcher import (
     fetch_course, fetch_course_blocks,
     fetch_html, fetch_course_sequences,
@@ -30,10 +30,14 @@ def edxcli():
 @click.option('--excludes', help="Same as '--include' option.")
 @click.argument('url')
 def save(url, output_folder, cookie_file, tasks_file, includes, excludes):
-    html_text = fetch_html(url, cookie_file)
-    #TODO: Lec_6 和 Lec_7 导出的 JSON 文件不完整
-    tasks = parse_page(html_text, tasks_file)
-    download_course(tasks, output_folder, includes, excludes)
+    course_id, element_id = parse_url(url)
+    resp = fetch_course_sequences(course_id, element_id, cookie_file)
+    resp_json = resp.json()
+    tasks = resp_json["items"]
+    proc_tasks = list(map(
+        lambda task: handle_html_task(task, cookie_file), tasks))
+    proc_tasks = list(map(grab_video_subtitle, proc_tasks))
+    download_course(proc_tasks, output_folder, includes, excludes, cookie_file)
 
 
 @click.group(invoke_without_command=True)
@@ -109,20 +113,38 @@ def parse_task(tasks_file, html):
     os.write(1, json.dumps(proc_tasks, indent=2).encode("UTF-8"))
 
 
-@click.command()
+@click.group()
+def download():
+    pass
+
+
+@download.command("task")
 @click.option('--includes',
     help="String like '2:3,5:8,10:12' , intervals will be parsed by `range()`.")
 @click.option('--excludes', help="Same as '--include' option.")
-@click.option('-C', '--output_folder', type=click.Path(exists=True))
+@click.option('-C', '--output-folder', type=click.Path(exists=True))
 @click.option('-c', '--cookie-file', type=click.Path(exists=True),
     help="A filename that stores cookies.")
 @click.argument('item_list_file', type=click.File("rb"))
-def download(item_list_file, output_folder, includes, excludes, cookie_file):
+def download_task(item_list_file, output_folder, includes, excludes, cookie_file):
     download_course(json.load(item_list_file), output_folder, includes, excludes, cookie_file)
 
 
-#TODO: add `wrap` command to wrap non-video page with a html template.
-#   Content of page will be inserted into `<body>` element.
+@download.command("webpage")
+@click.option('-c', '--cookie-file', type=click.Path(exists=True),
+    help="A filename that stores cookies.")
+@click.option('-C', '--output-folder', type=click.Path(exists=True))
+@click.argument("url")
+def download_webpage(url, output_folder, cookie_file):
+    if cookie_file:
+        cookies = http.cookiejar.MozillaCookieJar(cookie_file)
+        cookies.load()
+    else:
+        cookies = None
+    if not output_folder:
+        output_folder = os.getcwd()
+    download_webpage_from_url(url, output_folder, cookies)
+
 
 edxcli.add_command(save)
 edxcli.add_command(fetch)
