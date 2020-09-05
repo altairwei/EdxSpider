@@ -6,13 +6,16 @@ import http
 import click
 import requests
 from requests import Response
+from pathvalidate import sanitize_filename
 
-from edxspider.page_parser import (parse_page, grab_video_subtitle)
+from edxspider.page_parser import (
+    parse_page, grab_video_subtitle)
 from edxspider.item_downloader import (download_course, download_webpage_from_url)
 from edxspider.course_fetcher import (
     fetch_course, fetch_course_blocks,
     fetch_html, fetch_course_sequences,
-    parse_url, handle_html_task)
+    parse_url, handle_html_task,
+    parse_blocks_to_sequences)
 
 
 @click.group()
@@ -111,6 +114,29 @@ def parse_task(tasks_file, html):
         for task in proc_tasks:
             del task['html']
     os.write(1, json.dumps(proc_tasks, indent=2).encode("UTF-8"))
+
+
+@parse.command("blocks")
+@click.option("--html/--no-html", default=True)
+@click.option('-C', '--output-folder', type=click.Path(exists=True), default=os.getcwd())
+@click.option('-c', '--cookie-file', type=click.Path(exists=True),
+    help="A filename that stores cookies.")
+@click.argument('blocks_file', type=click.File("rb"))
+def parse_blocks(blocks_file, html, output_folder, cookie_file):
+    blocks = json.load(blocks_file)
+    sequence_list = parse_blocks_to_sequences(blocks["blocks"], cookie_file)
+    os.makedirs(output_folder, exist_ok=True)
+    for sequence in sequence_list:
+        task_file_name = os.path.join(
+            output_folder, sanitize_filename(sequence["display_name"]) + ".json")
+        tasks = list(map(
+            lambda task: handle_html_task(task, cookie_file), sequence["items"]))
+        proc_tasks = list(map(grab_video_subtitle, tasks))
+        if not html:
+            for task in proc_tasks:
+                del task['html']
+        with open(task_file_name, 'w', encoding="UTF-8") as f:
+            f.write(json.dumps(proc_tasks, indent=2))
 
 
 @click.group()
