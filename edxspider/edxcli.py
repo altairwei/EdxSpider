@@ -151,9 +151,13 @@ def download():
 @click.option('-C', '--output-folder', type=click.Path(exists=True))
 @click.option('-c', '--cookie-file', type=click.Path(exists=True),
     help="A filename that stores cookies.")
-@click.argument('item_list_file', type=click.File("rb"))
+@click.argument('item_list_file', type=click.File("rb"), nargs=-1)
 def download_task(item_list_file, output_folder, includes, excludes, cookie_file):
-    download_course(json.load(item_list_file), output_folder, includes, excludes, cookie_file)
+    for task_fh in item_list_file:
+        click.echo(click.style(
+            "Start to download task: %s" % task_fh.name, fg="cyan"))
+        download_course(
+            json.load(task_fh), output_folder, includes, excludes, cookie_file)
 
 
 @download.command("webpage")
