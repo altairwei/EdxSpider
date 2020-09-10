@@ -83,9 +83,12 @@ def wait_for_download_videos(videos: List, dest_folder: str):
             if video_obj.get("video_link", None) and video_obj.get("transcript_link", None):
                 for s_url in video_obj["transcript_link"]:
                     # Get filename from server
-                    remote_filename = get_uri_filename(s_url)
-                    s_ext = os.path.splitext(remote_filename)[1]
                     s_name = os.path.splitext(os.path.basename(video_obj["video_link"]))[0]
+                    remote_filename = get_uri_filename(s_url)
+                    if remote_filename:
+                        s_ext = os.path.splitext(remote_filename)[1]
+                    else:
+                        s_ext = os.path.splitext(s_url)[1]
                     s_filename = "{name}{ext}".format(
                         name = s_name,
                         ext = s_ext if s_ext else ".srt"
