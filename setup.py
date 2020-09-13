@@ -13,8 +13,7 @@ setup(
         "requests[socks]",
         "pathvalidate",
         "bs4",
-        "lxml",
-        "pywebcopy"
+        "lxml"
     ],
     entry_points='''
         [console_scripts]

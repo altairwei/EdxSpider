@@ -101,17 +101,6 @@ def wait_for_download_videos(videos: List, dest_folder: str):
             video_deque.append(video_obj)        
 
 
-def download_webpage_from_url(url, dest_folder, cookies):
-    if cookies:
-        pywebcopy.SESSION.cookies = cookies
-    args = {
-        'url': url,
-        'project_folder': dest_folder
-    }
-    pywebcopy.config["LOAD_JAVASCRIPT"] = False
-    pywebcopy.save_webpage(**args)
-
-
 def sizeof_fmt(num, suffix='B'):
     '''by Fred Cirera'''
     for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
@@ -119,6 +108,7 @@ def sizeof_fmt(num, suffix='B'):
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
+
 
 def download_file(url, filename):
     #TODO: 仍然没有解决下载视频可能不完整的BUG
@@ -157,6 +147,7 @@ def get_uri_filename(url):
         cd_val = resp.headers.get('Content-Disposition', '')
         if cd_val:
             return re.findall("filename=\"(.+)\"", cd_val)[0]
+
 
 class FileIncomplete(Exception):
     pass

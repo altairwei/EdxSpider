@@ -73,6 +73,7 @@ def handle_html_task(task: Dict, cookie_file: str = None) -> Dict:
     new_task["html"] = fetch_html(url, cookie_file)
     return new_task
 
+
 def parse_blocks_to_sequences(block_list: Dict, cookie_file) -> List:
     sequence_list = []
     for key, value in block_list.items():

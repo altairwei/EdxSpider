@@ -10,7 +10,7 @@ from pathvalidate import sanitize_filename
 
 from edxspider.page_parser import (
     parse_page, grab_video_subtitle)
-from edxspider.item_downloader import (download_course, download_webpage_from_url)
+from edxspider.item_downloader import (download_course)
 from edxspider.course_fetcher import (
     fetch_course, fetch_course_blocks,
     fetch_html, fetch_course_sequences,
@@ -27,12 +27,11 @@ def edxcli():
 @click.option('-c', '--cookie-file', type=click.Path(exists=True),
     help="A filename that stores cookies.")
 @click.option('-C', '--output_folder', type=click.Path(exists=True))
-@click.option('-t', '--tasks-file', type=click.File("w", encoding="utf-8"))
 @click.option('--includes',
     help="String like '2:3,5:8,10:12' , intervals will be parsed by `range()`.")
 @click.option('--excludes', help="Same as '--include' option.")
 @click.argument('url')
-def save(url, output_folder, cookie_file, tasks_file, includes, excludes):
+def save(url, output_folder, cookie_file, includes, excludes):
     course_id, element_id = parse_url(url)
     resp = fetch_course_sequences(course_id, element_id, cookie_file)
     resp_json = resp.json()
@@ -94,7 +93,7 @@ def blocks(course_id, username, cookie_file):
     help="A filename that stores cookies.")
 @click.argument('course_id')
 @click.argument('element_id')
-def seqs(course_id, element_id, cookie_file):
+def sequences(course_id, element_id, cookie_file):
     resp = fetch_course_sequences(course_id, element_id, cookie_file)
     os.write(1, resp.content)
 
@@ -158,22 +157,6 @@ def download_task(item_list_file, output_folder, includes, excludes, cookie_file
             "Start to download task: %s" % task_fh.name, fg="cyan"))
         download_course(
             json.load(task_fh), output_folder, includes, excludes, cookie_file)
-
-
-@download.command("webpage")
-@click.option('-c', '--cookie-file', type=click.Path(exists=True),
-    help="A filename that stores cookies.")
-@click.option('-C', '--output-folder', type=click.Path(exists=True))
-@click.argument("url")
-def download_webpage(url, output_folder, cookie_file):
-    if cookie_file:
-        cookies = http.cookiejar.MozillaCookieJar(cookie_file)
-        cookies.load()
-    else:
-        cookies = None
-    if not output_folder:
-        output_folder = os.getcwd()
-    download_webpage_from_url(url, output_folder, cookies)
 
 
 edxcli.add_command(save)
